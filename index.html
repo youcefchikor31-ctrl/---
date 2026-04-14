@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محرر الأكواد المتكامل</title>
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --header-bg: #252526;
+            --accent-blue: #0078d4;
+            --accent-green: #28a745;
+            --accent-red: #dc3545;
+            --text-color: #d4d4d4;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: var(--bg-dark);
+            color: white;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 10px 20px;
+            background-color: var(--header-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            z-index: 10;
+        }
+
+        .btn-group { display: flex; gap: 10px; }
+
+        button {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            transition: 0.2s;
+        }
+
+        .btn-paste { background-color: var(--accent-blue); }
+        .btn-clear { background-color: var(--accent-red); }
+        .btn-run { background-color: var(--accent-green); }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            position: relative;
+        }
+
+        /* حاوية المحررات - الارتفاع سيتحكم به الجافا سكريبت */
+        #editors-container {
+            display: flex;
+            height: 50%; /* الارتفاع الافتراضي */
+            min-height: 50px;
+            max-height: 90%;
+            background: #1e1e1e;
+        }
+
+        .code-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid #333;
+        }
+
+        .code-section label {
+            background: #2d2d2d;
+            padding: 4px 10px;
+            font-size: 11px;
+            color: #888;
+            font-weight: bold;
+        }
+
+        textarea {
+            flex: 1;
+            background-color: #1e1e1e;
+            color: #9cdcfe;
+            padding: 12px;
+            border: none;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            resize: none;
+            outline: none;
+        }
+
+        /* شريط السحب (المقبض) */
+        .resizer {
+            height: 10px;
+            background: #333;
+            cursor: ns-resize; /* شكل المؤشر سهمين فوق وتحت */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background 0.2s;
+        }
+        
+        .resizer:hover { background: #444; }
+
+        /* المستطيل الصغير في وسط الشريط */
+        .resizer::after {
+            content: '';
+            width: 40px;
+            height: 4px;
+            background: #666;
+            border-radius: 2px;
+        }
+
+        .preview {
+            flex: 1;
+            background-color: white;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h3 style="margin:0;">محرر الأكواد الذكي</h3>
+        <div class="btn-group">
+            <button class="btn-paste" onclick="pasteToActive()">📋 لصق</button>
+            <button class="btn-clear" onclick="clearAll()">🗑️ مسح الكل</button>
+            <button class="btn-run" onclick="runCode()">▶ تشغيل</button>
+        </div>
+    </div>
+
+    <div class="main-content" id="main-content">
+        <div id="editors-container">
+            <div class="code-section">
+                <label>HTML</label>
+                <textarea id="html-code" placeholder="HTML..."></textarea>
+            </div>
+            <div class="code-section">
+                <label>CSS</label>
+                <textarea id="css-code" placeholder="CSS..."></textarea>
+            </div>
+            <div class="code-section">
+                <label>JavaScript</label>
+                <textarea id="js-code" placeholder="JS..."></textarea>
+            </div>
+        </div>
+
+        <div class="resizer" id="dragMe"></div>
+
+        <div class="preview">
+            <iframe id="result-frame"></iframe>
+        </div>
+    </div>
+
+    <script>
+        // --- منطق السحب (Resizing) ---
+        const resizer = document.getElementById('dragMe');
+        const editors = document.getElementById('editors-container');
+        let y = 0;
+        let h = 0;
+
+        const mouseDownHandler = function (e) {
+            y = e.clientY || e.touches[0].clientY;
+            const styles = window.getComputedStyle(editors);
+            h = parseInt(styles.height, 10);
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+            document.addEventListener('touchmove', mouseMoveHandler);
+            document.addEventListener('touchend', mouseUpHandler);
+        };
+
+        const mouseMoveHandler = function (e) {
+            const currentY = e.clientY || (e.touches ? e.touches[0].clientY : 0);
+            const dy = currentY - y;
+            editors.style.height = `${h + dy}px`;
+        };
+
+        const mouseUpHandler = function () {
+            document.removeEventListener('mousemove', mouseMoveHandler);
+            document.removeEventListener('mouseup', mouseUpHandler);
+            document.removeEventListener('touchmove', mouseMoveHandler);
+            document.removeEventListener('touchend', mouseUpHandler);
+        };
+
+        resizer.addEventListener('mousedown', mouseDownHandler);
+        resizer.addEventListener('touchstart', mouseDownHandler);
+
+        // --- بقية وظائف التطبيق كما هي ---
+        let lastFocused = document.getElementById("html-code");
+        document.querySelectorAll('textarea').forEach(txt => {
+            txt.addEventListener('focus', () => lastFocused = txt);
+        });
+
+        function runCode() {
+            const html = document.getElementById("html-code").value;
+            const css = "<style>" + document.getElementById("css-code").value + "</style>";
+            const js = "<script>" + document.getElementById("js-code").value + "<\/script>";
+            const resultFrame = document.getElementById("result-frame").contentWindow.document;
+            resultFrame.open();
+            resultFrame.write(css + html + js);
+            resultFrame.close();
+        }
+
+        async function pasteToActive() {
+            try {
+                const text = await navigator.clipboard.readText();
+                const start = lastFocused.selectionStart;
+                const end = lastFocused.selectionEnd;
+                lastFocused.value = lastFocused.value.substring(0, start) + text + lastFocused.value.substring(end);
+                runCode();
+            } catch (err) { alert("فشل اللصق"); }
+        }
+
+        function clearAll() {
+            if (confirm("مسح الكل؟")) {
+                document.getElementById("html-code").value = "";
+                document.getElementById("css-code").value = "";
+                document.getElementById("js-code").value = "";
+                runCode();
+            }
+        }
+
+        document.getElementById("html-code").value = `<h1>اسحب الشريط الرمادي</h1>\n<p>لتكبير أو تصغير منطقة النتيجة.</p>`;
+        runCode();
+    </script>
+</body>
+</html>
